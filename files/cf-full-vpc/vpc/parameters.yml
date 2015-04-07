@@ -1,0 +1,13 @@
+---
+AppNetworkCidr:
+  Description: example 10.2, will become 10.2.0.0/16 with subnets, must be unique per stack
+  Type: String
+ControlVpc:
+  Description: control plane VPC ID (where a CD host lives, for instance)
+  Type: AWS::EC2::VPC::Id
+ControlVpcCidrBlock:
+  Description: full IP+CIDR for the control plane VPC (where a CD host lives, for instance)
+  Type: String
+ControlVpcRouteTable:
+  Description: default routing table for control plane (rtb-xxx)
+  Type: String

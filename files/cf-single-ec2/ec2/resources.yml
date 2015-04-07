@@ -1,0 +1,17 @@
+server:
+  Type: AWS::EC2::Instance
+  Properties:
+    KeyName: "ted myth main"
+    ImageId: ami-6989a659
+    InstanceType: t1.micro
+    AvailabilityZone: "us-west-2a"
+    Tags:
+    - Key: CompanyStackId
+      Value:
+        Ref: StackId
+    - Key: Name
+      Value:
+        Fn::Join:
+        - _
+        - - Ref: StackId
+          - single

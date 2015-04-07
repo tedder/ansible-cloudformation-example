@@ -1,0 +1,227 @@
+---
+# lots of inspiration here: https://gist.github.com/davidkelley/10588087
+vpc:
+  Type: AWS::EC2::VPC
+  Properties:
+    CidrBlock:
+      Fn::Join:
+      - ""
+      - - Ref: AppNetworkCidr
+        - ".0.0/16"
+    EnableDnsSupport: true
+    EnableDnsHostnames: true
+    Tags:
+    - Key: CompanyStackId
+      Value:
+        Ref: StackId
+    - Key: Name
+      Value:
+        Fn::Join:
+        - _
+        - - Ref: StackId
+          - vpc
+vpcGateway:
+  Type: AWS::EC2::InternetGateway
+  DependsOn:
+  - vpc
+  - vpcRouteTable
+  Properties:
+    Tags:
+    - Key: CompanyStackId
+      Value:
+        Ref: StackId
+    - Key: Name
+      Value:
+        Fn::Join:
+        - _
+        - - Ref: StackId
+          - vpc_gateway
+vpcGatewayAttachment:
+  Type: AWS::EC2::VPCGatewayAttachment
+  DependsOn:
+  - vpc
+  - vpcGateway
+  Properties:
+    InternetGatewayId:
+      Ref: vpcGateway
+    VpcId:
+      Ref: vpc
+vpcRouteTable:
+  Type: AWS::EC2::RouteTable
+  DependsOn:
+  - vpc
+  Properties:
+    VpcId:
+      Ref: vpc
+    Tags:
+    - Key: CompanyStackId
+      Value:
+        Ref: StackId
+    - Key: Name
+      Value:
+        Fn::Join:
+        - _
+        - - Ref: StackId
+          - vpc_route_table
+vpcRouteInternet:
+  Type: AWS::EC2::Route
+  DependsOn:
+  - vpcGateway
+  - vpcGatewayAttachment
+  - vpcRouteTable
+  Properties:
+    DestinationCidrBlock: 0.0.0.0/0
+    GatewayId:
+      Ref: vpcGateway
+    RouteTableId:
+      Ref: vpcRouteTable
+peeringRouteOut:
+  Type: AWS::EC2::Route
+  DependsOn:
+  - vpcRouteTable
+  - peeringConnectionToDefault
+  Properties:
+    DestinationCidrBlock:
+      Ref: ControlVpcCidrBlock
+    RouteTableId:
+      Ref: vpcRouteTable
+    VpcPeeringConnectionId:
+      Ref: peeringConnectionToDefault
+peeringRouteIn:
+  Type: AWS::EC2::Route
+  DependsOn:
+  - vpcRouteTable
+  - peeringConnectionToDefault
+  Properties:
+    DestinationCidrBlock:
+      Fn::Join:
+      - ""
+      - - Ref: AppNetworkCidr
+        - ".0.0/16"
+    RouteTableId:
+      Ref: ControlVpcRouteTable
+    VpcPeeringConnectionId:
+      Ref: peeringConnectionToDefault
+peeringConnectionToDefault:
+  Type: AWS::EC2::VPCPeeringConnection
+  DependsOn: vpc
+  Properties:
+    VpcId:
+      Ref: vpc
+    PeerVpcId:
+      Ref: ControlVpc
+    Tags:
+    - Key: CompanyStackId
+      Value:
+        Ref: StackId
+    - Key: Name
+      Value:
+        Fn::Join:
+        - _
+        - - Ref: StackId
+          - peering_connection
+subnetA:
+  Type: AWS::EC2::Subnet
+  Properties:
+    AvailabilityZone:
+      Fn::Join:
+      - ""
+      - - Ref: AWS::Region
+        - a
+    VpcId:
+      Ref: vpc
+    CidrBlock:
+      Fn::Join:
+      - ""
+      - - Ref: AppNetworkCidr
+        - ".1.0/24"
+    Tags:
+    - Key: CompanyStackId
+      Value:
+        Ref: StackId
+    - Key: Name
+      Value:
+        Fn::Join:
+        - _
+        - - Ref: StackId
+          - subnetA
+subnetB:
+  Type: AWS::EC2::Subnet
+  Properties:
+    AvailabilityZone:
+      Fn::Join:
+      - ""
+      - - Ref: AWS::Region
+        - b
+    VpcId:
+      Ref: vpc
+    CidrBlock:
+      Fn::Join:
+      - ""
+      - - Ref: AppNetworkCidr
+        - ".2.0/24"
+    Tags:
+    - Key: CompanyStackId
+      Value:
+        Ref: StackId
+    - Key: Name
+      Value:
+        Fn::Join:
+        - _
+        - - Ref: StackId
+          - subnetB
+subnetC:
+  Type: AWS::EC2::Subnet
+  Properties:
+    AvailabilityZone:
+      Fn::Join:
+      - ""
+      - - Ref: AWS::Region
+        - c
+    VpcId:
+      Ref: vpc
+    CidrBlock:
+      Fn::Join:
+      - ""
+      - - Ref: AppNetworkCidr
+        - ".3.0/24"
+    Tags:
+    - Key: CompanyStackId
+      Value:
+        Ref: StackId
+    - Key: Name
+      Value:
+        Fn::Join:
+        - _
+        - - Ref: StackId
+          - subnetC
+routeTableAssociationA:
+  Type: AWS::EC2::SubnetRouteTableAssociation
+  DependsOn:
+    - vpcRouteTable
+    - subnetA
+  Properties:
+    RouteTableId:
+      Ref: vpcRouteTable
+    SubnetId:
+      Ref: subnetA
+routeTableAssociationB:
+  Type: AWS::EC2::SubnetRouteTableAssociation
+  DependsOn:
+    - vpcRouteTable
+    - subnetB
+  Properties:
+    RouteTableId:
+      Ref: vpcRouteTable
+    SubnetId:
+      Ref: subnetB
+routeTableAssociationC:
+  Type: AWS::EC2::SubnetRouteTableAssociation
+  DependsOn:
+    - vpcRouteTable
+    - subnetC
+  Properties:
+    RouteTableId:
+      Ref: vpcRouteTable
+    SubnetId:
+      Ref: subnetC

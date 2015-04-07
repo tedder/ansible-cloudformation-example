@@ -1,0 +1,16 @@
+- hosts: localhost
+  tasks:
+  - name: assemble subset of a cloudformation stack
+    local_action: cloudformation_assemble directory=files/cf-full-vpc subdirs=main,s3,server,vpc
+    # skipping 'db' creation, it is expensive (slow), so not great for a demo.
+  - name: Launch cloudformation using compiled json
+    local_action: cloudformation stack_name="{{stack_name|default('test2')}}" state=present region=us-west-2 disable_rollback=yes template=/tmp/cfbuild.json
+    args:
+      template_parameters:
+        # these can also be specified via jinja2-style vars, it's just easier to give a demo this way.
+        KeyName: "ted myth main"
+        StackId: "{{stack_name|default('demo')}}"
+        AppNetworkCidr: "{{stack_cidr}}"
+        ControlVpc: vpc-79c37a1c
+        ControlVpcCidrBlock: 172.31.0.0/16
+        ControlVpcRouteTable: rtb-bf0687da

@@ -1,0 +1,186 @@
+---
+appElbSg:
+  Type: AWS::EC2::SecurityGroup
+  DependsOn: vpc
+  Properties:
+    GroupDescription: .
+    VpcId:
+      Ref: vpc
+    SecurityGroupIngress:
+    - IpProtocol: tcp
+      CidrIp: 0.0.0.0/0
+      FromPort: 80
+      ToPort: 80
+appServerSg:
+  Type: AWS::EC2::SecurityGroup
+  DependsOn:
+  - vpc
+  - appElbSg
+  Properties:
+    GroupDescription: Enable SSH access and HTTP access on the configured port (only to ELB)
+    VpcId:
+      Ref: vpc
+    SecurityGroupIngress:
+    - IpProtocol: tcp
+      FromPort: 8080
+      ToPort: 8080
+      SourceSecurityGroupId:
+        Ref: appElbSg
+    - IpProtocol: tcp
+      CidrIp: 0.0.0.0/0
+      FromPort: 22
+      ToPort: 22
+    - IpProtocol: udp
+      FromPort: 60000 # mosh
+      ToPort: 61000
+      CidrIp: 0.0.0.0/0
+appServerRole:
+  Type: AWS::IAM::Role
+  Properties:
+    Path: "/"
+    AssumeRolePolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              - ec2.amazonaws.com
+          Action:
+            - "sts:AssumeRole"
+    Policies:
+      - PolicyName: "S3Access"
+        PolicyDocument:
+          Statement:
+            - Effect: "Allow"
+              Action:
+                - "s3:GetObject"
+                - "s3:ListBucket"
+              Resource: # give both "bucketname" and "bucketname/*" style access.
+                - Fn::Join:
+                  - ""
+                  - - "arn:aws:s3:::"
+                    - Ref: contentBucket
+                - Fn::Join:
+                  - ""
+                  - - "arn:aws:s3:::"
+                    - Ref: contentBucket
+                    - "/*"
+appServerElb:
+  Type: AWS::ElasticLoadBalancing::LoadBalancer
+  DependsOn:
+  - subnetA
+  - subnetB
+  - subnetC
+  - appElbSg
+  - vpcGatewayAttachment # need to have an internet route for this ELB to work
+  Properties:
+    CrossZone: true
+    Subnets:
+      - Ref: subnetA
+      - Ref: subnetB
+      - Ref: subnetC
+    Listeners:
+    - LoadBalancerPort: 80
+      InstancePort: 8080
+      Protocol: HTTP
+    HealthCheck:
+      Target: http:8080/status
+      HealthyThreshold: 3
+      UnhealthyThreshold: 2
+      Interval: 15
+      Timeout: 5
+appServerLaunchConfig:
+  Type: AWS::AutoScaling::LaunchConfiguration
+  DependsOn: appServerInstanceProfile
+  Properties:
+    AssociatePublicIpAddress: true
+    KeyName:
+      Ref: KeyName
+    ImageId: "ami-29ebb519"
+    InstanceType: "t2.micro"
+    SecurityGroups:
+    - Ref: appServerSg
+    IamInstanceProfile:
+      Fn::GetAtt:
+      - appServerInstanceProfile
+      - Arn
+appServerGroup:
+  Type: AWS::AutoScaling::AutoScalingGroup
+  DependsOn:
+  - subnetA
+  - subnetB
+  - subnetC
+  - appServerLaunchConfig
+  - appServerElb
+  Properties:
+    AvailabilityZones:
+      - Fn::GetAtt:
+        - subnetA
+        - AvailabilityZone
+      - Fn::GetAtt:
+        - subnetB
+        - AvailabilityZone
+      - Fn::GetAtt:
+        - subnetC
+        - AvailabilityZone
+    LaunchConfigurationName:
+      Ref: appServerLaunchConfig
+    LoadBalancerNames:
+    - Ref: appServerElb
+    MaxSize: 5
+    MinSize: 2
+    VPCZoneIdentifier:
+    - Ref: subnetA
+    - Ref: subnetB
+    - Ref: subnetC
+    Tags:
+    - Key: CompanyStackId
+      Value:
+        Ref: StackId
+      PropagateAtLaunch: true
+    - Key: Role
+      Value: app
+      PropagateAtLaunch: true
+    - Key: Name
+      Value:
+        Fn::Join:
+        - _
+        - - Ref: StackId
+          - app
+      PropagateAtLaunch: true
+appServerInstanceProfile:
+  Type: AWS::IAM::InstanceProfile
+  Properties:
+    Path: "/"
+    Roles:
+      - Ref: appServerRole
+appServerDNS:
+  Type: AWS::Route53::RecordSetGroup
+  Properties:
+    HostedZoneName: tedder.me.
+    Comment: Zone apex alias targeted to appServerElb LoadBalancer.
+    RecordSets:
+    - Name:
+        Fn::Join:
+        - ''
+        - - Ref: StackId
+          - lb.tedder.me
+      Type: A
+      AliasTarget:
+        HostedZoneId:
+          Fn::GetAtt:
+          - appServerElb
+          - CanonicalHostedZoneNameID
+        DNSName:
+          Fn::GetAtt:
+          - appServerElb
+          - CanonicalHostedZoneName
+scaleDownAtNight:
+  Type: AWS::AutoScaling::ScheduledAction
+  Properties:
+    AutoScalingGroupName:
+      Ref: appServerGroup
+    MaxSize: 5
+    DesiredCapacity: 1
+    MinSize: 1
+    Recurrence: 0 02 * * * # 2am UTC = 6pm pacific

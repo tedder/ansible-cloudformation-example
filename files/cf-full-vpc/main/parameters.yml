@@ -1,0 +1,8 @@
+---
+StackId:
+  Description: Name of our stack, such as 'qa', 'prod', 'dev1'
+  Type: String
+KeyName:
+  Description: our ssh key
+  Type: String
+

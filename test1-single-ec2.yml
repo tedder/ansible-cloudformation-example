@@ -1,0 +1,8 @@
+- hosts: localhost
+  tasks:
+  - name: assemble subset of a cloudformation stack
+    local_action: cloudformation_assemble directory=files/cf-single-ec2
+    run_once: true
+  - name: Launch cloudformation using compiled json
+    local_action: cloudformation stack_name="test1" state=present region=us-west-2 disable_rollback=yes template=/tmp/cfbuild.json
+    run_once: true
