@@ -7,11 +7,6 @@ server:
     AvailabilityZone: "us-west-2a"
     Tags:
     - Key: CompanyStackId
-      Value:
-        Ref: StackId
+      Value: "simple test stack"
     - Key: Name
-      Value:
-        Fn::Join:
-        - _
-        - - Ref: StackId
-          - single
+      Value: "single_ec2_instance"
